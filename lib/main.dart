@@ -133,16 +133,7 @@ class MyHomePage extends HookWidget {
           child: stringListProvider.when(
             data: (stringList) {
               debugPrint('List from Provider.when $stringList');
-              return ListView.builder(
-                itemCount: stringList.length,
-                itemBuilder: (BuildContext context, int index) {
-                  return Card(
-                    key: UniqueKey(),
-                    child: Padding(padding: EdgeInsets.all(10), child: Text(stringList[index])),
-                  );
-                },
-              );
-              // return MyListWidget(stringList);
+              return MyListWidget(stringList);
               // return _buildList(stringList);
             },
             loading: () => CircularProgressIndicator(),
