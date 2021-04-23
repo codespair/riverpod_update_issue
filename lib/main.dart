@@ -23,9 +23,13 @@ class MyApp extends StatelessWidget {
 
 List<String> validValues = ['Zero', 'One', 'Two', 'All'];
 
+final selectedItemProvider = StateProvider<int>((_) => -1);
+
 // create simple FutureProvider with respective future call next
-final futureListProvider =
-    FutureProvider.family<List<String>, int>((ref, value) => _getList(value));
+final futureListProvider = FutureProvider<List<String>>((ref) async {
+  final selected = ref.watch(selectedItemProvider).state;
+  return _getList(selected);
+});
 
 // in a real case there would be an await call inside this function to network or local db or file system, etc...
 Future<List<String>> _getList(int value) async {
@@ -44,7 +48,7 @@ class MyHomePage extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-    var stringListProvider = useProvider(futureListProvider(-1));
+    var stringListProvider = useProvider(futureListProvider);
     var dropDownValue = useState<String>('All');
     // state for toggle buttongs
     var _toggleSelection = useState<List<bool>>(List.generate(3, (_) => false));
@@ -78,11 +82,9 @@ class MyHomePage extends HookWidget {
                     ),
                     onChanged: (String? newValue) {
                       dropDownValue.value = newValue!;
-                      context
-                          .refresh(futureListProvider(intFromString(newValue)));
+                      context.read(selectedItemProvider).state = intFromString(newValue);
                     },
-                    items: validValues
-                        .map<DropdownMenuItem<String>>((String value) {
+                    items: validValues.map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(
@@ -142,18 +144,18 @@ class MyHomePage extends HookWidget {
     );
   }
 
-  Widget _buildList(List<String> stringList) {
-    debugPrint('stringList in buildList $stringList');
-    return ListView.builder(
-      itemCount: stringList.length,
-      itemBuilder: (BuildContext context, int index) {
-        return Card(
-          child: Padding(
-              padding: EdgeInsets.all(10), child: Text(stringList[index])),
-        );
-      },
-    );
-  }
+  // Widget _buildList(List<String> stringList) {
+  //   debugPrint('stringList in buildList $stringList');
+  //   return ListView.builder(
+  //     itemCount: stringList.length,
+  //     itemBuilder: (BuildContext context, int index) {
+  //       return Card(
+  //         child: Padding(
+  //             padding: EdgeInsets.all(10), child: Text(stringList[index])),
+  //       );
+  //     },
+  //   );
+  // }
 
   int intFromString(String value) {
     if (value == 'Zero') return 0;
@@ -178,8 +180,7 @@ class MyListWidget extends HookWidget {
       itemBuilder: (BuildContext context, int index) {
         return Card(
           key: UniqueKey(),
-          child: Padding(
-              padding: EdgeInsets.all(10), child: Text(stringList[index])),
+          child: Padding(padding: EdgeInsets.all(10), child: Text(stringList[index])),
         );
       },
     );
