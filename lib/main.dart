@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -11,103 +13,175 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.purple,
+        brightness: Brightness.dark,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+List<String> validValues = ['Zero', 'One', 'Two', 'All'];
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
+// create simple FutureProvider with respective future call next
+final futureListProvider =
+    FutureProvider.family<List<String>, int>((ref, value) => _getList(value));
 
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
+// in a real case there would be an await call inside this function to network or local db or file system, etc...
+Future<List<String>> _getList(int value) async {
+  List<String> result = [...validValues];
+  if (value == -1) {
+    // do nothing just return original result...
+  } else {
+    result = []..add(result[value]);
+  }
+  debugPrint('Provider refreshed, result => $result');
+  return result;
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+// The screen widget where we will use the provider
+class MyHomePage extends HookWidget {
+  @override
+  Widget build(BuildContext context) {
+    final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+    var stringListProvider = useProvider(futureListProvider(-1));
+    var dropDownValue = useState<String>('All');
+    // state for toggle buttongs
+    var _toggleSelection = useState<List<bool>>(List.generate(3, (_) => false));
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+    return Scaffold(
+      key: _scaffoldKey,
+      appBar: AppBar(
+        title: Text('Why???'),
+      ),
+      body: Column(children: [
+        Padding(
+          padding: EdgeInsets.all(10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(
+                flex: 1,
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: EdgeInsets.fromLTRB(5, 2, 5, 1),
+                  child: DropdownButton<String>(
+                    key: UniqueKey(),
+                    value: dropDownValue.value.toString(),
+                    icon: Icon(Icons.arrow_drop_down),
+                    iconSize: 24,
+                    elevation: 16,
+                    underline: Container(
+                      height: 1,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                    onChanged: (String? newValue) {
+                      dropDownValue.value = newValue!;
+                      context
+                          .refresh(futureListProvider(intFromString(newValue)));
+                    },
+                    items: validValues
+                        .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(
+                          value,
+                          style: Theme.of(context).primaryTextTheme.subtitle1,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              Flexible(
+                flex: 1,
+                child: ToggleButtons(
+                  children: [
+                    Tooltip(
+                      key: UniqueKey(),
+                      message: 'Zero',
+                      child: Icon(
+                        Icons.one_k,
+                      ),
+                    ),
+                    Tooltip(
+                      key: UniqueKey(),
+                      message: 'One',
+                      child: Icon(Icons.two_k),
+                    ),
+                    Tooltip(
+                      key: UniqueKey(),
+                      message: 'Two',
+                      child: Icon(Icons.three_k),
+                    ),
+                  ],
+                  isSelected: _toggleSelection.value,
+                  onPressed: (int index) {
+                    // also want to refresh the provider here, but one at a time...
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          key: UniqueKey(),
+          height: 200,
+          child: stringListProvider.when(
+            data: (stringList) {
+              debugPrint('List from Provider.when $stringList');
+              return MyListWidget(stringList);
+              // return _buildList(stringList);
+            },
+            loading: () => CircularProgressIndicator(),
+            error: (_, __) => Text('OOOPsss error'),
+          ),
+        ),
+      ]),
+    );
   }
+
+  Widget _buildList(List<String> stringList) {
+    debugPrint('stringList in buildList $stringList');
+    return ListView.builder(
+      itemCount: stringList.length,
+      itemBuilder: (BuildContext context, int index) {
+        return Card(
+          child: Padding(
+              padding: EdgeInsets.all(10), child: Text(stringList[index])),
+        );
+      },
+    );
+  }
+
+  int intFromString(String value) {
+    if (value == 'Zero') return 0;
+    if (value == 'One') return 1;
+    if (value == 'Two') return 2;
+    return -1;
+  }
+}
+
+class MyListWidget extends HookWidget {
+  final GlobalKey<ScaffoldState> _widgetKey = GlobalKey<ScaffoldState>();
+  final List<String> stringList;
+
+  MyListWidget(this.stringList);
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    debugPrint('stringList in MyListWidget.build $stringList');
+    return ListView.builder(
+      key: _widgetKey,
+      itemCount: stringList.length,
+      itemBuilder: (BuildContext context, int index) {
+        return Card(
+          key: UniqueKey(),
+          child: Padding(
+              padding: EdgeInsets.all(10), child: Text(stringList[index])),
+        );
+      },
     );
   }
 }
